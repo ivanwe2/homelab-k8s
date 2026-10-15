@@ -1,0 +1,22 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: hello
+  namespace: argocd                  # Applications always live in Argo CD's namespace
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/ivanwe2/homelab-k8s.git
+    targetRevision: main             # branch to follow
+    path: manifests/hello            # folder with the YAML
+  destination:
+    server: https://kubernetes.default.svc   # "this cluster"
+    namespace: hello
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

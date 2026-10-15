@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hello-html
+data:
+  index.html: |
+    <!doctype html>
+    <html>
+      <body style="font-family: sans-serif; margin: 3rem">
+        <h1>Hello from Git</h1>
+        <p>Version 1</p>
+      </body>
+    </html>
