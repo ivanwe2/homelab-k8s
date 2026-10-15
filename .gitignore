@@ -1,0 +1,5 @@
+# Never commit these
+*.unsealed.yaml
+*.backup.yaml
+*kubeconfig*
+*.key
