@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:stable-alpine
+          image: nginx:this-tag-does-not-exist
           ports:
             - containerPort: 80
           readinessProbe:
