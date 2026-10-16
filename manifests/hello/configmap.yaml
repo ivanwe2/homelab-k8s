@@ -1,4 +1,4 @@
-apiVersion: v2
+apiVersion: v1
 kind: ConfigMap
 metadata:
   name: hello-html
@@ -8,6 +8,6 @@ data:
     <html>
       <body style="font-family: sans-serif; margin: 3rem">
         <h1>Hello from Git</h1>
-        <p>Version 1</p>
+        <p>Version 2</p>
       </body>
     </html>
