@@ -1,0 +1,19 @@
+# Design decisions
+
+The main choices in this cluster, why I made them, and what each one costs.
+
+| # | Decision | Why | Trade-off / alternatives |
+|---|---|---|---|
+| 1 | **k3s on 3 VMs** (1 server, 2 agents) on one Proxmox host | k3s is a full, certified Kubernetes distribution in one binary, with ingress, load balancer and storage built in. Three nodes make scheduling, draining and node failure observable. | Not real high availability: one physical host and one control-plane node. kubeadm or Talos would teach more cluster operations at the cost of setup time. |
+| 2 | **VMs, not LXC containers** | Kubernetes needs kernel modules and capabilities that unprivileged LXC containers don't provide. | VMs use more RAM than containers. |
+| 3 | **Pull-based GitOps with Argo CD** | No CI system needs cluster credentials. Manual drift is reverted automatically. Git history is the audit log, and a rollback is a `git revert`. Argo CD's UI makes sync state and drift visible. | Flux is lighter, but has no built-in UI. |
+| 4 | **App-of-apps** | Only one Application (`root`) is applied by hand. Deploying an app means adding a file to `apps/`. | ApplicationSets would generate Applications from templates. Unnecessary at this size. |
+| 5 | **Argo CD installed by Helm, not self-managed (yet)** | Self-management is tidy, but syncs can fight with values Argo CD writes at runtime (for example the admin password). The Helm values still live in Git. | Argo CD upgrades are a manual `helm upgrade`. |
+| 6 | **Automated sync with prune, self-heal and retry (refresh on)** | Git is the only way to change the cluster. Deleted files get cleaned up. Transient failures retry, and a fix commit is picked up while retrying. | A bad commit is applied immediately, so validation happens before pushing (`kubectl apply --dry-run=server`). |
+| 7 | **Pinned chart and image versions** | Rebuilding the cluster produces exactly the same result, and upgrades are deliberate commits. | Upgrades are manual. |
+| 8 | **Sealed Secrets** | Simplest way to keep secrets in Git: encrypt with a public key, decrypt only inside the cluster. No external secret store needed. | The private key must be backed up, or a rebuilt cluster can't read existing secrets. SOPS or External Secrets (with Azure Key Vault, for example) are the usual alternatives at larger scale. |
+| 9 | **Private root CA via cert-manager**, names under `*.homelab.internal` | Trusted HTTPS everywhere without owning a domain or exposing anything to the internet. `.internal` is reserved for private use. | Each client must trust the CA once. Switching to Let's Encrypt later only means changing the issuer. |
+| 10 | **TLS terminated at Traefik** | One place handles certificates for every app; services inside the cluster speak plain HTTP. | Traffic inside the cluster isn't encrypted (acceptable in a single-host lab). |
+| 11 | **local-path storage** | Built into k3s and fast. Replicated storage brings no real safety on a single physical disk. | A volume is pinned to one node: if that node is down, its pod can't move. Longhorn is the planned answer. |
+| 12 | **Memory limits, no CPU limits** | Exceeding a memory limit kills only the offending container, protecting the node. CPU limits throttle apps that would otherwise run fine; CPU *requests* still reserve capacity for scheduling. | A CPU-hungry pod can use spare CPU on its node. |
+| 13 | **No Bitnami charts or images** | Broadcom ended the free Bitnami image catalog in August 2025. Charts depending on it break or freeze. | Use upstream charts and operators instead (for example CloudNativePG for PostgreSQL). |
