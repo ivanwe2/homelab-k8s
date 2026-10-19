@@ -2,7 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: cert-manager-config
-  namespace: cert-manager                  # Applications always live in Argo CD's namespace
+  namespace: argocd                  # Applications always live in Argo CD's namespace
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
