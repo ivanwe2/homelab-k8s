@@ -1,2 +1,15 @@
 dex:
   enabled: false   # Dex = SSO connector (GitHub/Entra login). Not needed; we use the local admin user.
+
+configs:
+  params:
+    server.insecure: true   # Traefik terminates TLS; argocd-server speaks plain HTTP inside the cluster
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: traefik
+    hostname: argocd.homelab.internal
+    annotations:
+      cert-manager.io/cluster-issuer: homelab-ca
+    tls: true               # adds a TLS section for the hostname; cert-manager fills the Secret
