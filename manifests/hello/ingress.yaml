@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: hello
+  annotations:
+    cert-manager.io/cluster-issuer: homelab-ca   # "please get a certificate for my hosts"
+spec:
+  ingressClassName: traefik       # which ingress controller should handle this
+  tls:
+    - hosts:
+        - hello.homelab.internal
+      secretName: hello-tls       # cert-manager writes the certificate here, Traefik reads it from here
+  rules:
+    - host: hello.homelab.internal
+      http:
+        paths:
+          - path: /
+            pathType: Prefix      # "/" and everything below it
+            backend:
+              service:
+                name: hello
+                port:
+                  number: 8080    # the Service port, not the container port
