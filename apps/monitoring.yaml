@@ -1,0 +1,85 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: monitoring
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: 92.9.0
+    helm:
+      releaseName: monitoring
+      valuesObject:
+        # k3s runs the controller manager, scheduler, proxy and datastore inside one
+        # k3s process, not as separate pods. The chart would try to scrape them as
+        # separate targets and report them as down, so turn those parts off.
+        kubeControllerManager:
+          enabled: false
+        kubeScheduler:
+          enabled: false
+        kubeProxy:
+          enabled: false
+        kubeEtcd:
+          enabled: false
+
+        alertmanager:
+          enabled: false      # alert routing (email/Slack); not needed yet, saves memory
+
+        prometheus:
+          prometheusSpec:
+            retention: 3d     # keep 3 days of metrics
+            resources:
+              requests:
+                cpu: 100m
+                memory: 400Mi
+              limits:
+                memory: 1Gi
+            storageSpec:      # keep data across restarts, on a node disk via local-path
+              volumeClaimTemplate:
+                spec:
+                  storageClassName: local-path
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 5Gi
+            # scrape every ServiceMonitor/PodMonitor in the cluster, not only ones labelled for this release
+            serviceMonitorSelectorNilUsesHelmValues: false
+            podMonitorSelectorNilUsesHelmValues: false
+
+        grafana:
+          admin:
+            existingSecret: grafana-admin   # the SealedSecret from E1, once unsealed
+            userKey: admin-user
+            passwordKey: admin-password
+          ingress:
+            enabled: true
+            ingressClassName: traefik
+            annotations:
+              cert-manager.io/cluster-issuer: homelab-ca
+            hosts:
+              - grafana.homelab.internal
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.homelab.internal
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+      refresh: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
