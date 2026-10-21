@@ -4,53 +4,56 @@ server:
 pages:
   - name: Homelab Command Center
     columns:
-      # COLUMN 1: Base Hypervisor & Operating Nodes
+      # COLUMN 1: Infrastructure
       - size: small
         widgets:
           - type: bookmarks
-            title: Core Infrastructure
-            links:
-              - name: Proxmox VE
-                url: https://192.168.0.27:8006
-                icon: si:proxmox
-          - type: bookmarks
-            title: Workspace Nodes
-            links:
-              - name: Ubuntu Dev VM
-                url: http://192.168.0.29
-                icon: si:ubuntu
-              - name: Windows VM
-                url: http://192.168.0.28
-                icon: si:windows
+            groups:
+              - title: Core Infrastructure
+                links:
+                  - title: Proxmox VE
+                    url: https://192.168.0.27:8006
+                    icon: si:proxmox
+              - title: Workspace Nodes
+                links:
+                  - title: Ubuntu Dev VM
+                    url: http://192.168.0.29
+                    icon: si:ubuntu
+                  - title: Windows VM
+                    url: http://192.168.0.28
+                    icon: mdi:microsoft-windows
+              - title: Cluster
+                links:
+                  - title: Argo CD
+                    url: https://argocd.homelab.internal
+                    icon: si:argo
+                  - title: Grafana
+                    url: https://grafana.homelab.internal
+                    icon: si:grafana
+                  - title: Hello
+                    url: https://hello.homelab.internal
+                    icon: mdi:hand-wave
 
-      # COLUMN 2: Local AI Processing Stack
+      # COLUMN 2: Local AI
       - size: full
         widgets:
           - type: bookmarks
-            title: Local AI Services
-            links:
-              - name: Open WebUI + Ollama
-                url: http://192.168.0.70:8080
-                icon: mdi:robot-brain
-              - name: Llama.cpp backend
-                url: http://192.168.0.71:9876
-                icon: mdi:server
-              - name: Hermes Agent
-                url: http://192.168.0.28:8000
-                icon: mdi:head-cog
+            groups:
+              - title: Local AI Services
+                links:
+                  - title: Open WebUI + Ollama
+                    url: http://192.168.0.70:8080
+                    icon: mdi:robot
+                  - title: Llama.cpp backend
+                    url: http://192.168.0.71:9876
+                    icon: mdi:server
+                  - title: Hermes Agent
+                    url: http://192.168.0.28:8000
+                    icon: mdi:head-cog
 
-      # COLUMN 3: Time & Application Services
+      # COLUMN 3: Time
       - size: small
         widgets:
           - type: clock
             hour-format: 24h
           - type: calendar
-          - type: bookmarks
-            title: Personal Cloud (Pending)
-            links:
-              - name: Nextcloud Files
-                url: http://192.168.0.27:8082
-                icon: si:nextcloud
-              - name: Immich Photos
-                url: http://192.168.0.27:2283
-                icon: si:immich
