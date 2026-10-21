@@ -82,8 +82,64 @@ Real problems I hit while building this cluster. Each one: what I saw, why it ha
 
 ---
 
+## 6. Prometheus had nowhere to go
+
+**Date:** 2026-10-21 · **Area:** storage, scheduling, StatefulSets
+
+**Symptom.** A planned drill. First I powered off an agent and watched Prometheus notice it (failed scrapes, `up == 0`) before Kubernetes marked the node `NotReady`. Then I closed the node *Prometheus* ran on (`kubectl cordon`) and deleted its pod. The replacement stayed `Pending` indefinitely, even though two other nodes had plenty of room.
+
+**Root cause.** Prometheus stores its data on a `local-path` volume, which is a folder on one node's disk. The volume carries a node affinity, so any pod using it can only run on that node. The scheduler said so directly: one node unschedulable, the others a `volume node affinity conflict`.
+
+It gets worse when the node really dies instead of being cordoned. Prometheus runs as a StatefulSet, which guarantees at most one pod per identity. With the node unreachable, Kubernetes can't confirm the old pod has stopped, so the pod hangs in `Terminating` and no replacement is created. That protects the data from two writers, at the cost of availability. (The `node.kubernetes.io/out-of-service` taint is the explicit way to tell Kubernetes a node is really gone.)
+
+**Fix.** Uncordoned the node; the pod started there again with its data intact.
+
+**Prevention (planned).** Replication at the application level rather than the storage level: two Prometheus replicas on different nodes, each with its own local volume. The database in the next phase works the same way (a PostgreSQL primary plus a streaming replica on another node).
+
+**What I learned.** "Kubernetes reschedules pods" is true for stateless pods only. For stateful ones, where the data lives decides where the pod can live, and Kubernetes deliberately picks safety over availability when it can't tell whether a node is dead.
+
+---
+
+## 7. The Proxmox web UI was "refused" on and off
+
+**Date:** 2026-10-21 · **Area:** home network
+
+**Symptom.** The Proxmox web UI and SSH intermittently refused connections or timed out, over both the LAN and Tailscale. Most confusing: a TCP test to port 22 succeeded, and an `ssh` to the same address seconds later was refused.
+
+**Root cause.** An IP address conflict. A small ESP32 board (it runs my Wake-on-LAN bot) had been handed the server's static address by the router's DHCP, probably while the server was off. From then on, two devices answered for the same IP, and which one I reached depended on whose reply landed in my laptop's ARP cache.
+
+**How I found it.** Cleared the ARP entry (`arp -d`), pinged, and checked which MAC address answered (`Get-NetNeighbor`). The MAC's vendor prefix belonged to Espressif, the ESP32's maker, not to the server's network card.
+
+**Fix.** Limited the router's DHCP pool to `.100` to `.199` and restarted the ESP32 so it took a new lease.
+
+**Prevention.** One rule: every static IP lives below `.100`, where DHCP never hands out addresses.
+
+**What I learned.** "Connection refused" means *something* answered and said no. When the answer flips between two attempts, check *who* is answering before debugging the service.
+
+---
+
+## 8. A dashboard that loaded fine and showed nothing
+
+**Date:** 2026-10-21 · **Area:** application config
+
+**Symptom.** After moving Glance into the cluster, the page rendered with its column titles, clock and calendar, but none of the bookmarks. No errors in the logs, the pod healthy.
+
+**Root cause.** The bookmarks widget expects `groups`, each with `links`. My config put links in a shape the widget doesn't define. Glance parsed the YAML, ignored the keys it didn't recognise, and rendered empty groups. Valid YAML and a valid config are different things.
+
+**Fix.** Rewrote the config in the documented schema. Because the config is a hashed ConfigMap, the fix rolled out as a normal Git change.
+
+**Prevention.** Read the widget's reference docs before writing the config, and treat "nothing appeared and nothing complained" as a schema mismatch until proven otherwise.
+
+**What I learned.** Same pattern as lesson 3, one layer up: a system that accepts input it doesn't understand fails silently. "Accepted" doesn't mean "understood".
+
+---
+
 ## Smaller tooling gotchas
 
 - **Windows PowerShell 5.1 writes files as UTF-16** when you use `>`. kubectl and kubeseal expect UTF-8, so I use PowerShell 7 for anything that writes YAML or certificates.
 - **A PATH change doesn't reach terminals that are already open,** including new tabs of an already-running VS Code or Windows Terminal. Reloading `$env:Path` in the current shell avoids restarting everything.
 - **Changing an Argo CD Helm install** (bootstrapped by hand) means `helm upgrade` with the *same* chart version, so a config change doesn't silently become an Argo CD upgrade too.
+- **`>` can't create folders,** and **a pasted PowerShell block keeps going after an error.** Together they once failed to write the sealed file and then cleared the password variable anyway, so the retry sealed an empty password. Now the folder is created first, the script throws if the generated value is empty, and the cleanup runs as a separate step after checking the file exists.
+- **Server-side dry runs need the namespace to exist.** For an app's very first commit, `--dry-run=server` fails with `namespaces "x" not found`, because Argo CD creates the namespace during the sync. A client-side dry run covers that first push.
+- **Big CRDs need server-side apply.** A client-side apply stores the whole object in an annotation, which Kubernetes caps at 256 KB. Charts with large CRDs (kube-prometheus-stack) need `ServerSideApply=true` in Argo CD.
+- **On my router's firmware, the "Medium" and "High" firewall levels are outbound allow-lists,** not just stricter inbound rules. They silently broke Tailscale direct connections and QUIC. "Low" plus the flood and port-scan protections is the right setting here.
