@@ -1,0 +1,56 @@
+server:
+  port: 8080
+
+pages:
+  - name: Homelab Command Center
+    columns:
+      # COLUMN 1: Base Hypervisor & Operating Nodes
+      - size: small
+        widgets:
+          - type: bookmarks
+            title: Core Infrastructure
+            links:
+              - name: Proxmox VE
+                url: https://192.168.0.27:8006
+                icon: si:proxmox
+          - type: bookmarks
+            title: Workspace Nodes
+            links:
+              - name: Ubuntu Dev VM
+                url: http://192.168.0.29
+                icon: si:ubuntu
+              - name: Windows VM
+                url: http://192.168.0.28
+                icon: si:windows
+
+      # COLUMN 2: Local AI Processing Stack
+      - size: full
+        widgets:
+          - type: bookmarks
+            title: Local AI Services
+            links:
+              - name: Open WebUI + Ollama
+                url: http://192.168.0.70:8080
+                icon: mdi:robot-brain
+              - name: Llama.cpp backend
+                url: http://192.168.0.71:9876
+                icon: mdi:server
+              - name: Hermes Agent
+                url: http://192.168.0.28:8000
+                icon: mdi:head-cog
+
+      # COLUMN 3: Time & Application Services
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h
+          - type: calendar
+          - type: bookmarks
+            title: Personal Cloud (Pending)
+            links:
+              - name: Nextcloud Files
+                url: http://192.168.0.27:8082
+                icon: si:nextcloud
+              - name: Immich Photos
+                url: http://192.168.0.27:2283
+                icon: si:immich
