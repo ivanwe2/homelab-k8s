@@ -1,0 +1,20 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db
+spec:
+  instances: 2                                     # primary + 1 streaming replica
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  bootstrap:
+    initdb:
+      database: nextcloud
+      owner: nextcloud                              # the operator generates this user's password
+  storage:
+    storageClass: local-path
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
