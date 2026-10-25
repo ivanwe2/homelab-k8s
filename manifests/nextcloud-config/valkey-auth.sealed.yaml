@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: valkey-auth
+  namespace: nextcloud
+spec:
+  encryptedData:
+    redis-password: AgBGBxsVPAlcto5oIpYdurhZpeATxSry7GO9baq48ywcssisrJP8WDwHNVLd+GxALEoCKb5JCqFGx5txvF6DjhX6eukvw2ugXz8FwwTWFa7H1IMee3xJIAeo0/H1V8oqQTk6EEzi8iqRTikyNR9vwRgueWEfYHn2bt4DxNsFxrEMRdeR9Oc0eBVdiP0fcqNH9OkNWg3IYsZgta0BJbILeNXGiLrZNyGAbsqqk1qEmAbsg4sAEmW8ptZyHlHG+ZfgY8A9gtJ9/oNhejK3C5cuZ5VE5CLHKca755g+cK42nqI9ecvYiTCR+bdnDUEwH2OE/fIYx7qJK5wpZ4njKIxcsd5eEZ5OtL5jRz8D+VBLJ4bfwqvBK8u3K8VQg0DTlgA6oxQ+TZiNKyhWQR5yN45U9EdWW3datk69Zl0pnN2SyGbVA+XNKP73DSGE475S4jAIzole5eh8coaLdutk9waumJJ2GVDymJVzZoX36QdEAchsasMvfpXDUSu5zEGSop7U9SNRJB5mwajmrCvrOdHRsbfQ9p1ghqDvGfGmBgxP1B4cwVkvemn6EDtXDId4iP7cwdzDO58YqT4Mnt7+OtsLC3vrvWOxWGaZR+IJxnZwCipx/H5lk3xSt+jB8Fxw8av3ePII2ibSU//CgtM+RDpegh/8nbQSRnrzAkGSE/uH17Q+PGE6t8uNP0aQtU+SN6RvmPb9GMobhqs6XRVVWnhtdQzPp2adcLhFRDQ=
+  template:
+    metadata:
+      name: valkey-auth
+      namespace: nextcloud
