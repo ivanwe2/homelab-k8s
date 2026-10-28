@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: hello          # must match the selector above
+      annotations:
+        lab: "b3"
     spec:
       topologySpreadConstraints:
         - maxSkew: 1                          # per-node counts may differ by at most 1
