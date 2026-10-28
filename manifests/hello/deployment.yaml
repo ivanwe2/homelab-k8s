@@ -14,6 +14,15 @@ spec:
       labels:
         app: hello          # must match the selector above
     spec:
+      topologySpreadConstraints:
+        - maxSkew: 1                          # per-node counts may differ by at most 1
+          topologyKey: kubernetes.io/hostname # one domain per node
+          whenUnsatisfiable: DoNotSchedule    # strict: rather Pending than unbalanced
+          labelSelector:
+            matchLabels:
+              app: hello                      # which pods to count
+          matchLabelKeys:
+            - pod-template-hash               # count only pods of the same revision
       containers:
         - name: nginx
           image: nginx:stable-alpine
