@@ -30,13 +30,42 @@ pages:
                   - title: Grafana
                     url: https://grafana.homelab.internal
                     icon: si:grafana
+                  - title: Nextcloud
+                    url: https://nextcloud.homelab.internal
+                    icon: si:nextcloud
                   - title: Hello
                     url: https://hello.homelab.internal
                     icon: mdi:hand-wave
 
-      # COLUMN 2: Local AI
+      # COLUMN 2: Cluster health + Local AI
       - size: full
         widgets:
+          - type: monitor
+            cache: 30s
+            title: Cluster health
+            sites:
+              - title: Argo CD
+                url: https://argocd.homelab.internal
+                check-url: http://argocd-server.argocd.svc.cluster.local
+                icon: si:argo
+              - title: Grafana
+                url: https://grafana.homelab.internal
+                check-url: http://monitoring-grafana.monitoring.svc.cluster.local
+                icon: si:grafana
+              - title: Prometheus
+                url: https://grafana.homelab.internal/explore
+                check-url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/-/ready
+                icon: si:prometheus
+              - title: Nextcloud
+                url: https://nextcloud.homelab.internal
+                check-url: http://nextcloud.nextcloud.svc.cluster.local:8080/status.php
+                alt-status-codes:
+                  - 400
+                icon: si:nextcloud
+              - title: Hello
+                url: https://hello.homelab.internal
+                check-url: http://hello.hello.svc.cluster.local:8080
+                icon: mdi:hand-wave
           - type: bookmarks
             groups:
               - title: Local AI Services
