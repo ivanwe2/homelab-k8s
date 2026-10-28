@@ -10,7 +10,8 @@ spec:
   source:
     repoURL: https://nextcloud.github.io/helm/
     chart: nextcloud
-    targetRevision: 9.4.1
+    targetRevision: 9.4.1          # deliberately one version behind: lab F2 upgrades it
+    helm:
       releaseName: nextcloud
       valuesObject:
         nextcloud:
