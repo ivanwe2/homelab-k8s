@@ -20,6 +20,7 @@ spec:
         - maxSkew: 1                          # per-node counts may differ by at most 1
           topologyKey: kubernetes.io/hostname # one domain per node
           whenUnsatisfiable: DoNotSchedule    # strict: rather Pending than unbalanced
+          nodeTaintsPolicy: Honor             # ignore nodes this pod can't use (cordoned, dead)
           labelSelector:
             matchLabels:
               app: hello                      # which pods to count
