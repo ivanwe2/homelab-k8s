@@ -30,15 +30,19 @@ spec:
           enabled: false      # alert routing (email/Slack); not needed yet, saves memory
 
         prometheus:
+          service:
+            sessionAffinity: ClientIP   # each client (Grafana) sticks to one replica
           prometheusSpec:
-            retention: 3d     # keep 3 days of metrics
+            replicas: 2                 # two independent copies
+            podAntiAffinity: hard       # never both on the same node
+            retention: 3d               # keep 3 days of metrics
             resources:
               requests:
                 cpu: 100m
                 memory: 400Mi
               limits:
                 memory: 1Gi
-            storageSpec:      # keep data across restarts, on a node disk via local-path
+            storageSpec:                # each replica gets its own volume
               volumeClaimTemplate:
                 spec:
                   storageClassName: local-path
