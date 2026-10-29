@@ -32,6 +32,9 @@ spec:
         prometheus:
           service:
             sessionAffinity: ClientIP   # each client (Grafana) sticks to one replica
+          podDisruptionBudget:
+            enabled: true
+            minAvailable: 1             # at least one Prometheus stays up during drains
           prometheusSpec:
             replicas: 2                 # two independent copies
             podAntiAffinity: hard       # never both on the same node

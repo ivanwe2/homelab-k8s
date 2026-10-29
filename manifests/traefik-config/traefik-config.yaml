@@ -14,3 +14,6 @@ spec:
         labelSelector:
           matchLabels:
             app.kubernetes.io/name: traefik
+    podDisruptionBudget:
+      enabled: true
+      minAvailable: 1
