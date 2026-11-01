@@ -1,0 +1,22 @@
+[Unit]
+Description=RustFS object storage
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rustfs
+Group=rustfs
+EnvironmentFile=/etc/default/rustfs
+ExecStart=/usr/local/bin/rustfs server
+StateDirectory=rustfs
+WorkingDirectory=/var/lib/rustfs
+LogsDirectory=rustfs
+Restart=always
+RestartSec=10s
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

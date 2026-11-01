@@ -1,0 +1,1 @@
+CT 110, 192.168.0.40, "built with Session 7, Part A".
