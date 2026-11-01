@@ -134,6 +134,42 @@ It gets worse when the node really dies instead of being cordoned. Prometheus ru
 
 ---
 
+## 9. A drain that waited forever
+
+**Date:** 2026-10-29 · **Area:** CloudNativePG, Kubernetes controllers
+
+**Symptom.** A planned maintenance drill: `kubectl drain` on the node running the PostgreSQL primary. Instead of a quick switchover, drain retried `Cannot evict pod as it would violate the pod's disruption budget` every 5 seconds for minutes. The database itself looked perfectly healthy: 2 of 2 instances ready, the replica streaming.
+
+**Root cause.** Two things together.
+- The operator only switches over to a replica that is Ready, streaming, and on a node that is **not cordoned**. The only replica's node was still cordoned from a scheduling lab the day before. A cordon is stored on the node object, so it survives reboots and is easy to forget.
+- Uncordoning that node didn't help on its own. The operator is event-driven: it re-checks a cluster when a node *running a primary* becomes unschedulable, not when some other node becomes schedulable again. Running `cordon` again on the already-cordoned node changed nothing, so it produced no event either. The operator had looked once, found no valid replica, and was waiting for a reason to look again.
+
+**How I found it.** The operator's log had the whole story: "Primary is running on an unschedulable node, will try switching over" followed by "there are no valid candidates". (`kubectl logs -l <selector>` only shows the last 10 lines per pod unless you pass `--tail`, which hid it at first.)
+
+**Fix.** Gave the operator an event: an annotation on the replica pod. It reconciles on every change to a pod it owns, found the replica valid, switched over within seconds, and the drain finished.
+
+**Prevention.** `kubectl get nodes` before any maintenance: every node plain `Ready`, nothing `SchedulingDisabled` left over.
+
+**What I learned.** Controllers don't poll; they react to events. Fixing the condition a controller is waiting on isn't enough if nothing tells the controller that it changed.
+
+---
+
+## 10. The failover controller died with the database
+
+**Date:** 2026-10-29 · **Area:** CloudNativePG, failure domains
+
+**Symptom.** A power-off drill on one agent. The PostgreSQL primary was on that node, and for several minutes nothing promoted the replica on the healthy node. Meanwhile `kubectl get cluster` still reported a healthy cluster with the old primary. The dashboard I meant to watch the drill on (Glance) was gone too.
+
+**Root cause.** Promoting a replica is the operator's job, and the operator ran as a single pod on the **same node** as the primary. It was only rescheduled after the standard eviction timeout (300 seconds after the node got its `unreachable` taint), and only then did it fail the database over. The status looked healthy because the operator writes it, and the operator was dead. Glance happened to share the node as well.
+
+**Fix.** Two operator replicas spread across nodes. They use leader election: one does the work, the other takes over within about 15 seconds if the leader's node disappears.
+
+**Prevention.** Before every drill, list what runs on the victim node and ask, for each failure: who is supposed to handle it, and where does *that* run?
+
+**What I learned.** High availability has to cover the control loop, not just the data. And a status field is only as fresh as the controller that writes it.
+
+---
+
 ## Smaller tooling gotchas
 
 - **Windows PowerShell 5.1 writes files as UTF-16** when you use `>`. kubectl and kubeseal expect UTF-8, so I use PowerShell 7 for anything that writes YAML or certificates.
@@ -143,3 +179,8 @@ It gets worse when the node really dies instead of being cordoned. Prometheus ru
 - **Server-side dry runs need the namespace to exist.** For an app's very first commit, `--dry-run=server` fails with `namespaces "x" not found`, because Argo CD creates the namespace during the sync. A client-side dry run covers that first push.
 - **Big CRDs need server-side apply.** A client-side apply stores the whole object in an annotation, which Kubernetes caps at 256 KB. Charts with large CRDs (kube-prometheus-stack) need `ServerSideApply=true` in Argo CD.
 - **On my router's firmware, the "Medium" and "High" firewall levels are outbound allow-lists,** not just stricter inbound rules. They silently broke Tailscale direct connections and QUIC. "Low" plus the flood and port-scan protections is the right setting here.
+- **A cordon survives reboots.** It's stored on the node object, not in the node's memory. After a lab, `kubectl get nodes` should show no `SchedulingDisabled`.
+- **`kubectl logs -l <selector>` shows only the last 10 lines per pod** unless you pass `--tail` (for example `--tail=-1` with `--since=15m`).
+- **A dead node's pods still show `Running` and `1/1`.** Those columns come from the kubelet, which is gone, so they freeze. What changes is the pod's `Ready` condition, set by the control plane, which is what Services follow.
+- **The eviction countdown starts at the `NoExecute` taint, not at the power-off.** On this cluster that taint appeared about 4 minutes after the `NoSchedule` one, so the first evictions came about 9 minutes after the plug was pulled.
+- **Editing a comment by hand deleted the line above it.** Replacing a comment in `apps/nextcloud.yaml` also removed its `helm:` line, and without it the file isn't valid YAML, so `root` can't render `apps/` at all. A server-side dry run before the push rejects it in a second.
