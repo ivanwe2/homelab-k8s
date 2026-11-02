@@ -18,3 +18,8 @@ spec:
       memory: 256Mi
     limits:
       memory: 512Mi
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true                          # this plugin archives the WAL
+      parameters:
+        barmanObjectName: homelab-backups          # the ObjectStore from C2

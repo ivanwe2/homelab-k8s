@@ -1,0 +1,32 @@
+apiVersion: barmancloud.cnpg.io/v1
+kind: ObjectStore
+metadata:
+  name: homelab-backups
+spec:
+  configuration:
+    destinationPath: s3://homelab-backups/postgres/
+    endpointURL: http://192.168.0.40:9000
+    s3Credentials:
+      accessKeyId:
+        name: backup-credentials
+        key: AWS_ACCESS_KEY_ID
+      secretAccessKey:
+        name: backup-credentials
+        key: AWS_SECRET_ACCESS_KEY
+    wal:
+      compression: gzip
+    data:
+      compression: gzip
+  retentionPolicy: "14d"
+  instanceSidecarConfiguration:
+    env:
+      - name: AWS_REQUEST_CHECKSUM_CALCULATION
+        value: when_required
+      - name: AWS_RESPONSE_CHECKSUM_VALIDATION
+        value: when_required
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+      limits:
+        memory: 512Mi
