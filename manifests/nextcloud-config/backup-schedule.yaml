@@ -1,0 +1,13 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: nextcloud-db-daily
+spec:
+  schedule: "0 0 19 * * *"        # seconds minutes hours day month weekday: 19:00 UTC
+  immediate: true                 # also take one right now
+  backupOwnerReference: self
+  cluster:
+    name: nextcloud-db
+  method: plugin
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io
