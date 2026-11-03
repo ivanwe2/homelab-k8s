@@ -11,7 +11,7 @@ spec:
       database: nextcloud
       owner: nextcloud
       recoveryTarget:
-        targetTime: "2026-11-02 19:42:17.123456+00"   # your $t, exactly as printed
+        targetTime: "2026-11-03 21:47:22.225184+00"   # your $t, exactly as printed
   externalClusters:
     - name: nextcloud-db-backups
       plugin:
