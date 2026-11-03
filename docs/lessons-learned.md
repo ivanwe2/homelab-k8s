@@ -170,6 +170,40 @@ It gets worse when the node really dies instead of being cordoned. Prometheus ru
 
 ---
 
+## 11. The restore that found no backup
+
+**Date:** 2026-11-03 · **Area:** CloudNativePG, backups
+
+**Symptom.** A point-in-time restore drill: a new database cluster, bootstrapped from the backups with a target time just before a deliberate `DROP TABLE`. The recovery job failed within a second: `no target backup found`. A completed base backup clearly existed.
+
+**Root cause.** The target time in the manifest wasn't the one I had captured. It was the example timestamp from my runbook, which looked like a real value and never got replaced. A restore can only start from a base backup that had **finished** by the target time; the example was two hours before the only backup ended, so no backup qualified.
+
+**How I found it.** The backup plugin runs as its own container inside the recovery pod, and its log lists the whole backup catalog it read from the bucket, with start and end times. One `endTime` next to the `targetTime` made it obvious.
+
+**Fix.** Put the real timestamp in, pushed, then deleted the failed restore cluster so Argo CD recreated it. A cluster's bootstrap runs only once, at creation; editing it afterwards changes nothing.
+
+**Prevention.** Values like timestamps come from command output into the file by a command (`-replace` on a placeholder), never by hand, and the placeholder is obviously fake (`PASTE_T_HERE`). Before committing, check that a completed backup ended before the target.
+
+**What I learned.** When a tool says "nothing found", find out what it looked at and what it compared against before doubting the data.
+
+---
+
+## 12. Internet up, names down
+
+**Date:** 2026-11-02 · **Area:** home network, DNS
+
+**Symptom.** Creating the backup server's container on Proxmox: the template download failed with `Temporary failure in name resolution`. `ping 1.1.1.1` from the same host worked fine.
+
+**Root cause.** The host used the router (the ISP's modem) as its only DNS server, and the modem's DNS relay had stopped answering while still routing traffic. The host's DNS settings also had the router's IP as the "search domain", which is meaningless there.
+
+**Fix.** Public resolvers (1.1.1.1 and 9.9.9.9) on the Proxmox host, and on the new backup container from the start; search domain `home.arpa`, the name reserved for home networks.
+
+**Prevention.** Infrastructure that matters doesn't depend on the consumer router's DNS relay.
+
+**What I learned.** A working ping proves routing, not name resolution. Test the two separately: `ping` an IP, then `getent hosts` a name.
+
+---
+
 ## Smaller tooling gotchas
 
 - **Windows PowerShell 5.1 writes files as UTF-16** when you use `>`. kubectl and kubeseal expect UTF-8, so I use PowerShell 7 for anything that writes YAML or certificates.
@@ -184,3 +218,7 @@ It gets worse when the node really dies instead of being cordoned. Prometheus ru
 - **A dead node's pods still show `Running` and `1/1`.** Those columns come from the kubelet, which is gone, so they freeze. What changes is the pod's `Ready` condition, set by the control plane, which is what Services follow.
 - **The eviction countdown starts at the `NoExecute` taint, not at the power-off.** On this cluster that taint appeared about 4 minutes after the `NoSchedule` one, so the first evictions came about 9 minutes after the plug was pulled.
 - **Editing a comment by hand deleted the line above it.** Replacing a comment in `apps/nextcloud.yaml` also removed its `helm:` line, and without it the file isn't valid YAML, so `root` can't render `apps/` at all. A server-side dry run before the push rejects it in a second.
+- **`pct enter` gives a non-login shell,** whose PATH doesn't include `/usr/local/bin`. A binary installed there "doesn't exist" until PATH is extended in `.bashrc`. systemd services are unaffected when they use full paths.
+- **`kubectl apply -f` only understands Kubernetes objects** (`apiVersion` and `kind`). An app's own config file, packed into a ConfigMap by Kustomize, is validated through its folder: `kubectl apply --dry-run=server -k <folder>`. That checks the ConfigMap, not the config inside it; the app checks that when it starts.
+- **A Proxmox thin pool can promise more than it has.** The VM disks add up to more than the pool, which is fine until real writes fill it, and at 100% every guest on it gets write errors at once. New disks stay small and get grown when needed; `lvs` shows `Data%` and `Meta%`.
+- **Two schedulers, two time conventions.** CloudNativePG's `ScheduledBackup` has a seconds field and always runs in UTC; a Kubernetes `CronJob` has five fields and accepts a `timeZone`. Always check which one a schedule belongs to.

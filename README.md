@@ -15,6 +15,7 @@ I am building this to learn the platform side properly: how applications get dep
 | **Observability** | Prometheus + Grafana (kube-prometheus-stack), trimmed to fit k3s and a small cluster |
 | **Data** | PostgreSQL run by the CloudNativePG operator: a primary and a streaming replica on different nodes, with automatic failover |
 | **Resilience** | Replicas spread across nodes, disruption budgets for planned maintenance, an N-1 capacity check, and drain and power-off drills |
+| **Backups** | Continuous PostgreSQL WAL archiving plus daily base backups (point-in-time restore to any second in the last 14 days), and nightly client-side encrypted file backups with restic, all to an S3-compatible server outside the cluster. Restores are drilled, not assumed. |
 | **Workflow** | Every change is a commit, validated with a server-side dry run, then applied by Argo CD. No manual `kubectl apply`. |
 
 ## Architecture
@@ -30,6 +31,8 @@ flowchart LR
     prom["Prometheus + Grafana"] -.->|scrapes metrics| apps
     apps -->|"SQL via the -rw Service"| pg["PostgreSQL primary + replica<br/>CloudNativePG"]
   end
+  pg -->|"WAL every 5 min + daily base backup"| s3["Backup server (RustFS, S3 API)<br/>Proxmox container, outside the cluster"]
+  apps -->|"nightly restic snapshot (encrypted)"| s3
   argo -->|pulls desired state| gh
   user["Browser<br/>*.homelab.internal"] -->|HTTPS| traefik
 ```
@@ -53,10 +56,13 @@ flowchart LR
 | `monitoring-config` | Grafana admin credentials as a SealedSecret | `manifests/monitoring-config` |
 | `glance` | The homelab start page: links to every service, plus live status checks of the cluster services over cluster DNS. Its config is a Kustomize-generated ConfigMap with a content hash in its name, so every config change is a visible, revertable rollout. | `manifests/glance` |
 | `cnpg-operator` | The CloudNativePG operator: runs PostgreSQL clusters, handles replication, failover and credentials. Two replicas on different nodes with leader election, so a node loss can't take out the database and the thing that fails it over at once. | Helm chart `0.29.0` (operator 1.30) |
-| `nextcloud-config` | Nextcloud's backing services: a 2-instance PostgreSQL 17 cluster, a Valkey cache (Redis-compatible, used for file locking), and the admin and cache passwords as SealedSecrets | `manifests/nextcloud-config` |
+| `nextcloud-config` | Nextcloud's backing services and their backups: a 2-instance PostgreSQL 17 cluster with continuous WAL archiving and a daily base backup, a Valkey cache (Redis-compatible, used for file locking), a nightly restic CronJob for Nextcloud's files, a PodMonitor for database and backup metrics, and the admin, cache and backup credentials as SealedSecrets | `manifests/nextcloud-config` |
 | `nextcloud` | Nextcloud 35 file sync behind Traefik, using the external database and cache. A startup probe protects the first install and every upgrade from being killed halfway, and a cron sidecar runs background jobs. | Helm chart `9.4.1` |
+| `barman-cloud-plugin` | CloudNativePG's backup plugin: ships WAL and base backups to object storage and restores from them. Runs next to the operator; talks to it over mutual TLS with certificates from cert-manager. | Helm chart `0.8.1` (plugin 0.15.1) |
 | `traefik-config` | Two Traefik replicas spread across nodes, with a disruption budget. Traefik is installed by k3s itself; this overrides its chart values through k3s's `HelmChartConfig`, so even a component Argo CD didn't install is configured from Git. | `manifests/traefik-config` |
 | Argo CD | The GitOps controller itself, bootstrapped with Helm | `bootstrap/argocd-values.yaml` |
+
+Outside the cluster, deliberately: the **backup server**, RustFS in its own Proxmox container. Backups must survive whatever destroys the original, including a deleted namespace or a bad commit, so Argo CD doesn't manage it. Its configuration (minus the secret) is in `infra/backup-server/`.
 
 ## Repository layout
 
@@ -65,7 +71,8 @@ apps/          Argo CD Applications, one file per app (watched by root)
 bootstrap/     Argo CD Helm values and the root Application (applied once by hand)
 manifests/     Kubernetes manifests, one folder per app
 pub-cert.pem   Sealed Secrets public certificate (public by design: it can only encrypt)
-scripts/       Tools run by hand, such as the N-1 capacity check (not watched by Argo CD)
+scripts/       Tools run by hand: the N-1 capacity check, a restic helper pod (not watched by Argo CD)
+infra/         Configuration of things outside the cluster, such as the backup server
 docs/          Design decisions and lessons learned
 ```
 
@@ -75,6 +82,7 @@ docs/          Design decisions and lessons learned
 - **Private keys stay private.** The Sealed Secrets key backup and the root CA key never enter this repository; `.gitignore` guards against accidents.
 - **Admin passwords are generated, not typed,** so they never end up in shell history.
 - **Database passwords never leave the cluster.** The PostgreSQL operator generates them into a Secret that Nextcloud reads directly; they don't exist on my laptop or in Git.
+- **Backups are scoped and encrypted.** The cluster's S3 key can only touch one bucket (tested: it's refused anywhere else), the backup server's admin credentials never enter the cluster, and file backups are encrypted by restic before they leave it.
 - **Nothing is exposed to the internet.** Hostnames under `homelab.internal` only resolve on my own machines. The private IP addresses in this repo can't be reached from outside my network.
 
 ## Failure drills
@@ -91,6 +99,9 @@ Things I broke on purpose, and what happened.
 | Roll out with a strict spread rule while a node is cordoned | The new pods stayed `Pending`: the cordoned node still counted as a spread domain with zero pods, so no other node could take more than one | Strict spreading needs `nodeTaintsPolicy: Honor`, or every deploy hangs during maintenance |
 | Drain the node running the PostgreSQL primary | The disruption budget refused to evict the primary until the operator had switched over to the replica; then the drain finished | Budgets plus an operator that hands over the primary make maintenance safe (the first attempt waited forever: lessons-learned #9) |
 | Start a second drain while the first node is still out | Refused: the only running database instance is protected by its budget | Budgets stop overlapping maintenance from taking everything down at once |
+| Restore the database to one second before a `DROP TABLE` | A new cluster was built from the last base backup plus the archived WAL, stopping at the chosen second: the dropped table was there, with the same number of Nextcloud file records as the live database. The first attempt failed with `no target backup found` (lessons-learned #11). | Point-in-time recovery works, and restoring into a separate cluster means a drill never risks the real database |
+| Restore a single Nextcloud file from the nightly backup | `restic` restored it from the encrypted repository; its SHA-256 matched the live file exactly | A backup is only proven by a restore, byte for byte |
+| Use the cluster's backup key on another bucket | Access denied | The key's policy limits the damage of a leak to one bucket |
 | Power off an agent, with written predictions | After the node went `NotReady`, Deployment pods were replaced elsewhere 300 seconds after the eviction taint. Nextcloud waited for its node (its volume is there), and StatefulSet pods hung in `Terminating` until the `out-of-service` taint. The database failed over late: its operator had died on the same node (lessons-learned #10). | Detection time is downtime, and whatever handles failures must not share a failure domain with what it protects |
 
 ## Lessons learned
@@ -114,7 +125,8 @@ The reasoning behind each tool and trade-off: **[docs/decisions.md](docs/decisio
 - [x] Glance dashboard as the homelab start page
 - [x] Nextcloud on CloudNativePG (PostgreSQL operator, primary plus replica) and Valkey, with a database failover drill and a version upgrade through a pull request
 - [x] Resilience: replicated Prometheus, Traefik and the database operator, PodDisruptionBudgets, topology spread, an N-1 capacity check, maintenance and power-loss drills
-- [ ] Backups and disaster recovery: PostgreSQL point-in-time recovery from off-site object storage, Nextcloud files, and a full rebuild from Git plus backups
+- [x] Backups: continuous PostgreSQL archiving with point-in-time restore, nightly encrypted file backups, restore drills (backup server outside the cluster, on the same host for now)
+- [ ] Disaster recovery drill: rebuild from Git, the Sealed Secrets key and the backups alone, timed; then a second medium and an off-site copy
 - [ ] The trading platform from my bachelor's thesis (.NET, Go, Python, React; RabbitMQ, Redis, PostgreSQL), with images built by GitHub Actions and pushed to ghcr.io
 - [ ] Master's thesis: Go vs Rust service performance, measured on identical infrastructure
 
