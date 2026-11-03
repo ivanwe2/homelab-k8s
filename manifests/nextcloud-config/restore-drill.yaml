@@ -1,0 +1,30 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: nextcloud-db-restore
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.11-standard-trixie
+  bootstrap:
+    recovery:
+      source: nextcloud-db-backups
+      database: nextcloud
+      owner: nextcloud
+      recoveryTarget:
+        targetTime: "2026-11-02 19:42:17.123456+00"   # your $t, exactly as printed
+  externalClusters:
+    - name: nextcloud-db-backups
+      plugin:
+        name: barman-cloud.cloudnative-pg.io
+        parameters:
+          barmanObjectName: homelab-backups   # same ObjectStore
+          serverName: nextcloud-db            # the folder of the ORIGINAL cluster
+  storage:
+    storageClass: local-path
+    size: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
