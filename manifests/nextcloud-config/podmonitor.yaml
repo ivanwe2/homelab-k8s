@@ -1,0 +1,11 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: nextcloud-db
+spec:
+  selector:
+    matchLabels:
+      cnpg.io/cluster: nextcloud-db
+      cnpg.io/podRole: instance       # only the database pods, not backup or join jobs
+  podMetricsEndpoints:
+    - port: metrics                   # the instance manager's exporter, port 9187
