@@ -14,6 +14,9 @@ pages:
                   - title: Proxmox VE
                     url: https://192.168.0.27:8006
                     icon: si:proxmox
+                  - title: Backups (RustFS)
+                    url: http://192.168.0.40:9001
+                    icon: mdi:backup-restore
               - title: Workspace Nodes
                 links:
                   - title: Ubuntu Dev VM
@@ -66,6 +69,10 @@ pages:
                 url: https://hello.homelab.internal
                 check-url: http://hello.hello.svc.cluster.local:8080
                 icon: mdi:hand-wave
+              - title: Backups
+                url: http://192.168.0.40:9001
+                check-url: http://192.168.0.40:9000/health
+                icon: mdi:backup-restore
           - type: bookmarks
             groups:
               - title: Local AI Services
