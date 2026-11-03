@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: nextcloud-files-backup
+spec:
+  schedule: "30 21 * * *"            # every day at 21:30...
+  timeZone: Europe/Sofia             # ...Plovdiv time
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      ttlSecondsAfterFinished: 86400
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: restic
+              image: restic/restic:0.19.1
+              command: ["/bin/sh", "-c"]
+              args:
+                - |
+                  set -e
+                  restic cat config >/dev/null 2>&1 || restic init
+                  restic backup /nextcloud/data /nextcloud/config /nextcloud/custom_apps /nextcloud/themes --host nextcloud --tag nightly
+                  restic forget --host nextcloud --keep-daily 7 --keep-weekly 4 --prune
+                  restic check
+              env:
+                - name: RESTIC_REPOSITORY
+                  value: s3:http://192.168.0.40:9000/homelab-backups/nextcloud-files
+              envFrom:
+                - secretRef:
+                    name: backup-credentials   # AWS_* and RESTIC_PASSWORD, from Part B
+              volumeMounts:
+                - name: nextcloud
+                  mountPath: /nextcloud
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 512Mi
+          volumes:
+            - name: nextcloud
+              persistentVolumeClaim:
+                claimName: nextcloud-nextcloud
+                readOnly: true
